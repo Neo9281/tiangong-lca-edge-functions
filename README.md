@@ -95,6 +95,7 @@ See `test.example.http` for local and remote examples, including:
 - `lca_solve` / `lca_jobs` / `lca_results`
 - `lca_query_results`
 - `lca_contribution_path` / `lca_contribution_path_result`
+- `export_tidas_package` / `import_tidas_package` / `tidas_package_jobs`
 
 ## OpenAI Integration Baseline
 
@@ -187,6 +188,25 @@ grant execute on function public.lca_enqueue_job(text, jsonb) to service_role;
 - `lca_contribution_path_result`: supports `GET` and `POST`.
   - `GET`: `/functions/v1/lca_contribution_path_result/{resultId}` or `?result_id=...`
   - `POST`: body `{ "result_id": "<uuid>" }`
+- `export_tidas_package`: `POST` only.
+  - body defaults to `{ "scope": "current_user" }`
+  - normal users only support bulk export of `"current_user"`
+  - system admins additionally support `"open_data"` and `"current_user_and_open_data"`
+  - optional `roots`: `[{ "table": "processes", "id": "<uuid>", "version": "01.00.000" }]`
+  - when `roots` is provided, the function exports that selected dataset and recursively includes all reachable related datasets
+  - returns async job states: `queued | in_progress | cache_hit`
+  - response shape: `{ "ok": true, "mode": "queued", "job_id": "<uuid>", "scope": "selected_roots", "root_count": 1 }`
+- `import_tidas_package`: `POST` only.
+  - two-step async flow
+  - `prepare_upload`: body `{ "action": "prepare_upload", "filename": "my-package.zip" }`
+  - returns `{ job_id, source_artifact_id, upload: { bucket, object_path, token, path, signed_url } }`
+  - client uploads ZIP to object storage with the returned signed upload token, then calls `enqueue`
+  - `enqueue`: body `{ "action": "enqueue", "job_id": "<uuid>", "source_artifact_id": "<uuid>", "artifact_sha256": "<optional-sha256>" }`
+  - returns async job states: `queued | in_progress | completed`
+- `tidas_package_jobs`: supports `GET` and `POST`.
+  - `GET`: `/functions/v1/tidas_package_jobs/{jobId}` or `?job_id=...`
+  - `POST`: body `{ "job_id": "<uuid>" }`
+  - returns package job metadata, artifact metadata, and ready artifact signed download URLs
 
 ## LCA Minimal Integration Script (submit -> poll -> fetch)
 
@@ -249,6 +269,9 @@ npx supabase functions deploy lca_results --project-ref qgzvkongdjqiiamzbbts --n
 npx supabase functions deploy lca_query_results --project-ref qgzvkongdjqiiamzbbts --no-verify-jwt
 npx supabase functions deploy lca_contribution_path --project-ref qgzvkongdjqiiamzbbts --no-verify-jwt
 npx supabase functions deploy lca_contribution_path_result --project-ref qgzvkongdjqiiamzbbts --no-verify-jwt
+npx supabase functions deploy export_tidas_package --project-ref qgzvkongdjqiiamzbbts --no-verify-jwt
+npx supabase functions deploy import_tidas_package --project-ref qgzvkongdjqiiamzbbts --no-verify-jwt
+npx supabase functions deploy tidas_package_jobs --project-ref qgzvkongdjqiiamzbbts --no-verify-jwt
 ```
 
 ### Embedding Functions
