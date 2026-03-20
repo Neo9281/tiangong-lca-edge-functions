@@ -50,8 +50,21 @@
     - `data_scope` 规则与 `lca_query_results` 一致
   - `lca_contribution_path_result`
     - 读取 `contribution-path:v1` JSON artifact 并返回解析结果
+- `supabase/functions/export_tidas_package`
+  - 异步创建 TIDAS ZIP 导出任务
+  - 普通用户仅支持整体导出 `current_user`
+  - 系统管理员额外支持整体导出 `open_data` / `current_user_and_open_data`
+  - 选择 `roots` 时，允许导出单条数据及其递归关联数据
+- `supabase/functions/import_tidas_package`
+  - 异步准备 ZIP 上传并提交导入任务
+  - `prepare_upload` 负责生成 signed upload URL 和 `import_source` artifact
+  - `enqueue` 负责把已上传 ZIP 提交给 package worker
+- `supabase/functions/tidas_package_jobs`
+  - 查询异步 TIDAS package job / artifact 状态
+  - 返回 ready artifact 的 signed download URL
 - `supabase/functions/_shared`
   - 认证、OpenAI、Redis、Supabase client、通用工具。
+  - `tidas_package.ts` 负责 TIDAS package 的请求校验、权限判断、job/artifact 编排、signed URL 与状态查询辅助逻辑。
 - `scripts/lca_submit_poll_fetch.sh`
   - LCA submit/poll/fetch 联调脚本（依赖 `jq`）。
 
