@@ -91,29 +91,32 @@ Deno.test('resolveExportCacheAction returns in_progress for active export jobs',
   );
 });
 
-Deno.test('resolveExportCacheAction returns cache_hit for completed export jobs', () => {
-  const cacheRow = {
-    id: 'cache-2',
-    status: 'ready',
-    job_id: 'job-2',
-    export_artifact_id: 'artifact-1',
-    report_artifact_id: 'artifact-2',
-    hit_count: 1,
-  };
-
-  assertEquals(
-    resolveExportCacheAction(cacheRow, {
+Deno.test(
+  'resolveExportCacheAction retries completed export jobs so a fresh package is built',
+  () => {
+    const cacheRow = {
+      id: 'cache-2',
       status: 'ready',
-    }),
-    'cache_hit',
-  );
-  assertEquals(
-    resolveExportCacheAction(cacheRow, {
-      status: 'completed',
-    }),
-    'cache_hit',
-  );
-});
+      job_id: 'job-2',
+      export_artifact_id: 'artifact-1',
+      report_artifact_id: 'artifact-2',
+      hit_count: 1,
+    };
+
+    assertEquals(
+      resolveExportCacheAction(cacheRow, {
+        status: 'ready',
+      }),
+      'retry',
+    );
+    assertEquals(
+      resolveExportCacheAction(cacheRow, {
+        status: 'completed',
+      }),
+      'retry',
+    );
+  },
+);
 
 Deno.test('resolveExportCacheAction retries stale, failed, or orphaned cache rows', () => {
   const cacheRow = {

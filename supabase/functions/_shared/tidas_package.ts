@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js@2';
+import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2.98.0';
 import { corsHeaders } from './cors.ts';
 
 export const SUPPORTED_TIDAS_TABLES = [
@@ -996,10 +996,6 @@ export function resolveExportCacheAction(
 ): ExportCacheAction {
   if (!cacheRow.job_id || !jobRow) {
     return 'retry';
-  }
-
-  if (jobRow.status === 'ready' || jobRow.status === 'completed') {
-    return 'cache_hit';
   }
 
   if (jobRow.status === 'queued' || jobRow.status === 'running') {
