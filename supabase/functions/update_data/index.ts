@@ -11,6 +11,7 @@ import getDataDetail from '../_shared/get_data.ts';
 import getUserRole from '../_shared/get_user_role.ts';
 import { supabaseClient } from '../_shared/supabase_client.ts';
 import updateData from '../_shared/update_data.ts';
+import { canNonReviewAdminUpdateUnderReviewData } from '../_shared/update_data_review_guard.ts';
 
 Deno.serve(async (req) => {
   const jsonResponse = (body: Record<string, unknown>, status: number) =>
@@ -65,7 +66,16 @@ Deno.serve(async (req) => {
   if (!isReviewAdmin && !isOwner) {
     return new Response('Forbidden', { status: 403 });
   }
-  if (!isReviewAdmin && oldData?.stateCode >= 20 && oldData?.stateCode < 100) {
+  const isAllowedUnderReviewStateTransition = canNonReviewAdminUpdateUnderReviewData(
+    oldData?.stateCode,
+    data,
+  );
+  if (
+    !isReviewAdmin &&
+    oldData?.stateCode >= 20 &&
+    oldData?.stateCode < 100 &&
+    !isAllowedUnderReviewStateTransition
+  ) {
     return jsonResponse(
       {
         code: 'DATA_UNDER_REVIEW',
