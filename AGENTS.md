@@ -34,6 +34,7 @@
   - `lca_solve`
     - `data_scope` 可选 `current_user` / `open_data` / `all_data`
     - 三个 scope 都复用同一类用户增强 snapshot（公开数据 + 当前用户数据）
+    - 公开数据范围当前按 `state_code=100..199` 认定
     - 请求时仍按根过程语义区分：`current_user = 当前用户过程`，`open_data = 公开过程`，`all_data = 当前用户 + 公开过程`
     - 三个 scope 在缺少 ready snapshot 时都可自动触发构建
   - `lca_query_results` 当前同时支持：
@@ -42,12 +43,14 @@
     - `processes_one_impact` 通过 `top_n/offset/sort_by/sort_direction` 做 snapshot 级热点排名
     - `data_scope` 可选 `current_user` / `open_data` / `all_data`
     - 三个 scope 都复用同一类用户增强 snapshot（公开数据 + 当前用户数据）
+    - 公开数据范围当前按 `state_code=100..199` 认定
     - 请求时仍按过程 scope 过滤：`current_user = 当前用户过程`，`open_data = 公开过程`，`all_data = 当前用户 + 公开过程`
     - 三个 scope 在缺少 ready snapshot 时都可自动触发构建
   - `lca_contribution_path`
     - 提交某个 `process + impact` 的路径分析异步作业
     - 复用 `lca_jobs + lca_result_cache + lca_results`
     - `data_scope` 规则与 `lca_query_results` 一致
+    - 公开数据范围当前按 `state_code=100..199` 认定
   - `lca_contribution_path_result`
     - 读取 `contribution-path:v1` JSON artifact 并返回解析结果
 - `supabase/functions/export_tidas_package`
