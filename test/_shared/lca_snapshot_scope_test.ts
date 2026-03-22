@@ -8,7 +8,7 @@ import {
   matchesSnapshotProcessFilter,
   parseLcaDataScope,
   shouldAutoBuildSnapshot,
-} from '../supabase/functions/_shared/lca_snapshot_scope.ts';
+} from '../../supabase/functions/_shared/lca_snapshot_scope.ts';
 
 Deno.test('parseLcaDataScope defaults unknown values to current_user', () => {
   assertEquals(parseLcaDataScope(undefined), 'current_user');

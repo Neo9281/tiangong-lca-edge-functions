@@ -3,7 +3,7 @@ import { assertEquals } from 'jsr:@std/assert';
 import {
   matchesProcessDataScope,
   processScopeLookupKey,
-} from '../supabase/functions/_shared/lca_process_scope.ts';
+} from '../../supabase/functions/_shared/lca_process_scope.ts';
 
 Deno.test('processScopeLookupKey normalizes missing versions', () => {
   assertEquals(processScopeLookupKey('process-1', '01.00.000'), 'process-1:01.00.000');
