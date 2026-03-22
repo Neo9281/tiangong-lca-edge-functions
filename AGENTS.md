@@ -2,146 +2,136 @@
 
 ## 1. Purpose
 
-本文件用于约束后续 AI 在本仓库的开发行为，目标是：
+This file defines how AI coding agents should work in this repository.
 
-- 保证修改可执行、可验证、可回溯。
-- 降低上下文切换成本，让 AI 能快速接手。
-- 保持代码、文档、运行方式同步。
-- 仅维护最终状态，不记录历史变更过程（历史记录由 Git/PR 承载）。
+Use `AGENTS.md` for:
 
-## 2. Project Snapshot
+- repo-level workflow rules
+- validation requirements
+- documentation sync rules
+- directory and test placement conventions
+- deployment guardrails
 
-- 项目类型：Supabase Edge Functions（Deno 2.1.x）+ Node 工具链。
-- 入口目录：`supabase/functions/*/index.ts`。
-- 共享模块：`supabase/functions/_shared/*`。
-- 依赖锁定：`supabase/functions/deno.json` 的 `imports` 使用精确版本（exact pin），避免无版本映射。
-- 本地启动：
-  - `npm install`
-  - `npm start`（等价于 `supabase functions serve --env-file ./supabase/.env.local --no-verify-jwt`）
-- 主要测试样例：`test.example.http`
-- 主要说明文档：`README.md`
+Do not use `AGENTS.md` as the main place to document detailed function behavior. Human-facing runtime semantics, request/response examples, and deploy command lists belong in `README.md`.
 
-## 3. Directory Guide
+## 2. Source of Truth Boundaries
 
-- `supabase/functions/flow_hybrid_search`、`process_hybrid_search`、`lifecyclemodel_hybrid_search`
-  - 混合检索函数（LLM query rewrite + 向量/全文检索）。
-- `supabase/functions/ai_suggest`
-  - AI 建议生成函数。
-- `supabase/functions/embedding*`、`webhook_*embedding*`
-  - 嵌入与 webhook 处理链路。
-- `supabase/functions/lca_*`
-  - LCA 求解、任务查询、结果查询。
-  - `lca_solve`
-    - `data_scope` 可选 `current_user` / `open_data` / `all_data`
-    - 三个 scope 都复用同一类用户增强 snapshot（公开数据 + 当前用户数据）
-    - 公开数据范围当前按 `state_code=100..199` 认定
-    - 请求时仍按根过程语义区分：`current_user = 当前用户过程`，`open_data = 公开过程`，`all_data = 当前用户 + 公开过程`
-    - 三个 scope 在缺少 ready snapshot 时都可自动触发构建
-  - `lca_query_results` 当前同时支持：
-    - `process_all_impacts`
-    - `processes_one_impact` 显式 `process_ids` 对比
-    - `processes_one_impact` 通过 `top_n/offset/sort_by/sort_direction` 做 snapshot 级热点排名
-    - `data_scope` 可选 `current_user` / `open_data` / `all_data`
-    - 三个 scope 都复用同一类用户增强 snapshot（公开数据 + 当前用户数据）
-    - 公开数据范围当前按 `state_code=100..199` 认定
-    - 请求时仍按过程 scope 过滤：`current_user = 当前用户过程`，`open_data = 公开过程`，`all_data = 当前用户 + 公开过程`
-    - 三个 scope 在缺少 ready snapshot 时都可自动触发构建
-  - `lca_contribution_path`
-    - 提交某个 `process + impact` 的路径分析异步作业
-    - 复用 `lca_jobs + lca_result_cache + lca_results`
-    - `data_scope` 规则与 `lca_query_results` 一致
-    - 公开数据范围当前按 `state_code=100..199` 认定
-  - `lca_contribution_path_result`
-    - 读取 `contribution-path:v1` JSON artifact 并返回解析结果
-- `supabase/functions/export_tidas_package`
-  - 异步创建 TIDAS ZIP 导出任务
-  - 普通用户仅支持整体导出 `current_user`
-  - 系统管理员额外支持整体导出 `open_data` / `current_user_and_open_data`
-  - 选择 `roots` 时，允许导出单条数据及其递归关联数据
-- `supabase/functions/import_tidas_package`
-  - 异步准备 ZIP 上传并提交导入任务
-  - `prepare_upload` 负责生成 signed upload URL 和 `import_source` artifact
-  - `enqueue` 负责把已上传 ZIP 提交给 package worker
-- `supabase/functions/tidas_package_jobs`
-  - 查询异步 TIDAS package job / artifact 状态
-  - 返回 ready artifact 的 signed download URL
-- `supabase/functions/_shared`
-  - 认证、OpenAI、Redis、Supabase client、通用工具。
-  - `tidas_package.ts` 负责 TIDAS package 的请求校验、权限判断、job/artifact 编排、signed URL 与状态查询辅助逻辑。
-- `scripts/lca_submit_poll_fetch.sh`
-  - LCA submit/poll/fetch 联调脚本（依赖 `jq`）。
+- `AGENTS.md`
+  - AI workflow rules and non-negotiable repo conventions
+- `README.md`
+  - local setup
+  - environment preparation
+  - function behavior and request examples
+  - deployment and remote config commands
+- `supabase/functions/*` and `supabase/functions/_shared/*`
+  - runtime source of truth
+- `test/` and `test/_shared/`
+  - test source of truth
 
-## 4. OpenAI Integration Baseline
+If `AGENTS.md` and `README.md` start repeating the same operational detail, keep the concise rule in `AGENTS.md` and move the detailed explanation to `README.md`.
 
-- 当前统一依赖映射在 `supabase/functions/deno.json`：
-  - `@openai/openai -> npm:openai@6.27.0`
-  - `@supabase/functions-js/edge-runtime.d.ts -> jsr:@supabase/functions-js@2.98.0/edge-runtime.d.ts`
-  - `@supabase/supabase-js@2 -> jsr:@supabase/supabase-js@2.98.0`
-- 代码中统一使用：
-  - `import OpenAI from "@openai/openai";`
-- 默认优先 `responses.create`；若需要兼容，允许在共享层做回退逻辑。
-- 与同义词相关逻辑统一放在：
-  - `supabase/functions/_shared/hybrid_query_utils.ts`
+## 3. Repo Snapshot
 
-## 5. Non-Negotiable Workflow (MUST)
+- Runtime: Supabase Edge Runtime (`Deno 2.1.x`) plus a small Node toolchain
+- Functions root: `supabase/functions`
+- Shared runtime modules: `supabase/functions/_shared`
+- Test root: `test`
+- Shared helper tests: `test/_shared`
+- Request collection: `test.example.http`
+- LCA integration helper: `scripts/lca_submit_poll_fetch.sh`
+- Dependency mapping is pinned in `supabase/functions/deno.json`; keep imports exact unless there is a deliberate upgrade
 
-每次 AI 对代码做任何改动后，必须执行以下步骤：
+## 4. Directory Conventions
 
-1. 运行格式与规范脚本：
-   - `npm run lint`
-2. 运行最小必要校验（按影响范围）：
-   - `deno check` 属于强制步骤：凡涉及 `supabase/functions` 下代码改动（`.ts`/`.js`），必须执行，不可跳过。
-   - 单函数改动：`deno check --config supabase/functions/deno.json <changed-file>`
-   - 共享模块改动：至少覆盖所有直接依赖该模块的函数。
-3. 同步文档：
-   - 若改动影响开发流程、依赖版本、函数行为、验证方式，必须同步更新 `AGENTS.md`（必要时同时更新 `README.md`）。
-4. 输出结果时明确：
-   - 改了哪些文件
-   - 运行了哪些命令
-   - 哪些校验通过/未执行及原因
+- Runtime code belongs under `supabase/functions/*` and `supabase/functions/_shared/*`.
+- Tests do not belong in runtime directories unless there is a very strong repo-specific reason.
+- Shared helper tests should live in `test/_shared/`.
+- Manual request samples and fixture payloads should live under `test/` or `test/fixtures/`, not the repo root.
+- Human-facing operational guides belong in `README.md`, not in ad hoc files unless the topic is large enough to justify a dedicated document.
 
-## 6. AGENTS.md Sync Rules (MUST)
+## 5. Working Rules
 
-出现以下任一情况，必须更新本文件：
+- Prefer changing shared modules over copying logic into multiple functions.
+- Keep edits scoped to the task; avoid drive-by refactors.
+- Do not introduce new dependencies unless necessary; if you do, update both `README.md` and `AGENTS.md` when workflow expectations change.
+- Preserve exact import pinning style in `supabase/functions/deno.json`.
+- Never expose secrets, tokens, or full connection strings in code comments, docs, logs, commits, or responses.
+- If you touch `_shared` behavior, think through all direct dependents before finishing.
 
-- 新增/删除函数目录。
-- 变更核心依赖（如 OpenAI SDK、Supabase runtime 相关依赖）。
-- 变更统一开发命令、lint/format/test 命令。
-- 变更共享模块职责边界（`_shared` 下）。
-- 变更“必做流程”或发布流程。
+## 6. Required Validation
 
-如果改动不涉及以上内容，可不改 `AGENTS.md`，但需要在最终说明中声明“本次无需更新 AGENTS.md”。
+After any repository change, run:
+
+```bash
+npm run lint
+```
+
+Additional rules:
+
+- If you changed files under `supabase/functions`, `deno check` is mandatory.
+- For a single function change, check the changed file directly:
+
+```bash
+deno check --config supabase/functions/deno.json <changed-file>
+```
+
+- For a shared module change, also check every directly dependent function.
+- For test-only or fixture-only changes outside runtime directories, `npm run lint` is the minimum; add `deno check` or `deno test` when imports or executable examples changed.
 
 ## 7. Validation Matrix
 
-- 混合检索相关改动（`flow/process/lifecyclemodel` 或其 shared 依赖）：
-  - `deno check` 三个函数至少各跑一次。
-  - 用 `test.example.http` 里的对应请求做 smoke test（本地或远程至少一端）。
-- OpenAI 共享层改动（`openai_structured.ts` / `openai_chat.ts`）：
-  - 至少验证 `responses.create` 可用（`deno eval` 或实际函数调用）。
-- LCA 链路改动：
-  - 优先用 `scripts/lca_submit_poll_fetch.sh` 验证端到端（本地需 `jq`）。
+- Search / hybrid search changes:
+  - `deno check` the changed function plus directly used shared modules
+  - prefer a smoke test from `test.example.http`
+- LCA changes:
+  - `deno check` the touched file(s)
+  - if `_shared` LCA modules changed, check every directly dependent LCA function
+  - prefer `scripts/lca_submit_poll_fetch.sh` for end-to-end verification when behavior changed materially
+- TIDAS package changes:
+  - `deno check` the touched function(s) and `tidas_package.ts` dependents when shared logic changed
+- OpenAI shared wrapper changes:
+  - check the touched wrapper and direct dependents
+  - verify the intended OpenAI call path still type-checks
 
-## 8. Environment & Secrets
+## 8. Documentation Sync Rules
 
-- 环境文件：
-  - 本地函数运行：`supabase/.env.local`
-  - HTTP 调试变量：仓库根目录 `.env`
-- 严禁在提交、日志、回答中泄露密钥、token、完整连接串。
-- 展示命令输出时，默认对敏感字段脱敏。
+Update `README.md` when changes affect:
 
-## 9. Change Strategy for AI
+- local setup
+- env vars or secrets workflow
+- function behavior or request examples
+- deployment steps
+- test/demo entry points humans are expected to run
 
-- 优先改共享层，避免在多个函数复制逻辑。
-- 优先“小步可验证”，一次只解决一个明确问题。
-- 不做与请求无关的大范围重构。
-- 不引入新依赖，除非有明确必要并在 `AGENTS.md`/`README.md` 记录原因。
+Update `AGENTS.md` when changes affect:
 
-## 10. Suggested Final Response Template
+- repo workflow expectations
+- validation rules
+- directory conventions
+- dependency management policy
+- deployment guardrails
 
-每次完成开发后，建议按以下结构输出：
+Avoid putting long per-function feature descriptions into `AGENTS.md` unless the detail is a repo-wide invariant that materially changes how an agent should edit the code.
 
-1. 结果摘要（1-3 句）。
-2. 变更文件列表。
-3. 执行的验证命令与结果。
-4. 风险/后续建议（如有）。
+## 9. Deployment Guardrails
+
+- Local serve entrypoint:
+
+```bash
+npm start
+```
+
+- Before deployment, finish the required validation for the touched area.
+- Secrets sync and remote deploy commands live in `README.md` under `Remote Config`; treat that section as the deploy command source of truth.
+- If you changed human-facing behavior or deploy scope, update `README.md` before or together with the deployment change.
+- If you changed a shared runtime module, do not assume one function deploy is enough; identify every dependent function that needs redeploying.
+- Be careful with `supabase secrets set`; it mutates remote project configuration.
+
+## 10. Response Expectations
+
+When reporting completed work, state:
+
+1. which files changed
+2. which commands were run
+3. which checks passed or were not run
+4. any follow-up deployment or integration risk
