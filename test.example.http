@@ -66,13 +66,13 @@ curl -i --location --request POST '{{$dotenv LOCAL_ENDPOINT}}/flow_hybrid_search
 curl -i --location --request POST '{{$dotenv LOCAL_ENDPOINT}}/flow_hybrid_search' \
     --header 'Content-Type: application/json' \
     --header 'Authorization: Bearer {{$dotenv USER_API_KEY}}' \
-  --data @payload_error.json
+  --data @test/fixtures/flow_hybrid_search/payload_error.json
 
 ### @name Flow_Hybrid_Search：Local（长文本正确示例）
 curl -i --location --request POST '{{$dotenv LOCAL_ENDPOINT}}/flow_hybrid_search' \
     --header 'Content-Type: application/json' \
     --header 'Authorization: Bearer {{$dotenv USER_API_KEY}}' \
-  --data @payload_correct.json
+  --data @test/fixtures/flow_hybrid_search/payload_correct.json
 
 ### @name Process_Hybrid_Search：Remote
 
